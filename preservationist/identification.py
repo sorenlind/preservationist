@@ -47,7 +47,7 @@ def _process_album(subdir, files):
             continue  # ignore hidden files
 
         suffix = Path(file).suffix.lower()
-        if suffix in [".mpg", ".mpeg", ".pdf", ".m4v", ".mov", ".m4p"]:
+        if suffix in [".mpg", ".mpeg", ".pdf", ".m4v", ".mov", ".m4p", ".mp4"]:
             continue
 
         if suffix not in [".m4a", ".mp3"]:
