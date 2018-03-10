@@ -27,7 +27,11 @@ def diagnose(input_folder, output_file, recursive):
         csvwriter.writerow(['artist', 'album', 'result'])
 
         for subdir, dirs, files in tqdm(list(os.walk(input_folder))):
-            if dirs:
+            if ".itlp" in subdir:
+                continue  # ignore iTunes LP
+
+            if [dir_ for dir_ in dirs if ".itlp" not in dir_]:
+                # We ignore folders with subdirs except if the subdir is an iTunes LP
                 continue
 
             result = _process_album(subdir, files)
@@ -41,6 +45,7 @@ def diagnose(input_folder, output_file, recursive):
 def _process_album(subdir, files):
     covers_found = []
     cover_formats_found = []
+    missing_covers = 0
     errors = False
     for file in sorted(files):
         if file.startswith("."):
@@ -75,10 +80,12 @@ def _process_album(subdir, files):
             covers = audio.tags["covr"]
             cover_formats_found.append(covers[0].imageformat)
             covers_found.append(covers[0].hex())
+        else:
+            missing_covers = True
 
     if not covers_found:
         return NO_ARTWORK
-    elif len(covers_found) < len(files):
+    elif missing_covers:
         return SOME_MISSING
     elif len(set(covers_found)) == 1:
         artwork_type = AtomDataType(cover_formats_found[0])
