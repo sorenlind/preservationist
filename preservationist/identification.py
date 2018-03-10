@@ -46,7 +46,11 @@ def _process_album(subdir, files):
         if file.startswith("."):
             continue  # ignore hidden files
 
-        if not (file.lower().endswith(".m4a") or file.lower().endswith(".mp3")):
+        suffix = Path(file).suffix.lower()
+        if suffix in [".mpg", ".mpeg", ".pdf"]:
+            continue
+
+        if suffix not in [".m4a", ".mp3"]:
             logging.debug("unknown filetype: %s", file)
             continue
 
