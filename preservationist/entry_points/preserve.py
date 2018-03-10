@@ -9,7 +9,7 @@ from preservationist.identification import diagnose
 MAINPARSER_HELP = "print current version number"
 SUBPARSERS_HELP = "%(prog)s must be called with a command:"
 
-logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
 
 
 def main():

@@ -45,20 +45,22 @@ def _process_album(subdir, files):
     for file in sorted(files):
         if file.startswith("."):
             continue  # ignore hidden files
-        if file.endswith(".pdf"):
-            continue  # ignore PDF files
+
+        if not (file.lower().endswith(".m4a") or file.lower().endswith(".mp3")):
+            logging.debug("unknown filetype: %s", file)
+            continue
 
         path = os.path.join(subdir, file)
         try:
             audio = mutagen.File(path)
         except Exception as exception:
-            # print("ERROR IN", " - ".join(Path(path).parts[-3:]))
-            print(exception)
+            logging.warning("Could not read '%s': %s", file, exception)
             errors = True
             continue
 
         if not audio:
             # print("COULD NOT READ", " - ".join(Path(path).parts[-3:]))
+            logging.warning("No audio in file '%s'", file)
             errors = True
             continue
 
