@@ -23,7 +23,7 @@ def diagnose(input_folder, output_file, recursive):
     """Find albums for with messy artwork."""
 
     with open(output_file, 'w') as csvfile:
-        csvwriter = csv.writer(csvfile, delimiter=';', quoting=csv.QUOTE_MINIMAL)
+        csvwriter = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         csvwriter.writerow(['artist', 'album', 'result'])
 
         for subdir, dirs, files in tqdm(list(os.walk(input_folder))):
