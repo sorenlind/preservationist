@@ -36,9 +36,9 @@ def _diagnose_parser(subparsers):
     """Create parser for the 'diagnose' command."""
     parser = subparsers.add_parser("diagnose", help="find albums with messy artwork.")
     parser.add_argument('--input-folder', type=str, help='name of input folder', required=True)
-    parser.add_argument('--output-file', type=str, help='name of output file', required=True)
+    parser.add_argument('--output-file', type=str, help='name of output file', required=False)
     parser.add_argument(
-        '--recursive', help='search input-folder recursively', default=False, action='store_true')
+        '--verbose', help='show status for all albums', default=False, action='store_true')
     parser.set_defaults(func=_diagnose)
     return parser
 
@@ -46,7 +46,7 @@ def _diagnose_parser(subparsers):
 def _diagnose(_, args):
     """Find albums with messy artwork."""
     logging.info("finding albums with messy artwork.")
-    diagnose(input_folder=args.input_folder, output_file=args.output_file, recursive=args.recursive)
+    diagnose(input_folder=args.input_folder, output_file=args.output_file, verbose=args.verbose)
 
 
 if __name__ == "__main__":

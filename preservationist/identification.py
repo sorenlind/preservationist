@@ -19,27 +19,37 @@ ARTWORK_TYPE_MULTIPLE = "Multiple image types"
 ARTWORK_COVER_MULTIPLE = "Multiple covers"
 
 
-def diagnose(input_folder, output_file, recursive):
-    """Find albums for with messy artwork."""
+def diagnose(input_folder, output_file, verbose):
+    """Find albums with messy artwork."""
 
-    with open(output_file, 'w') as csvfile:
-        csvwriter = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-        csvwriter.writerow(['artist', 'album', 'result'])
+    results = _process_folder(input_folder, verbose)
+    if output_file:
+        with open(output_file, 'w') as csvfile:
+            csvwriter = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+            csvwriter.writerow(['artist', 'album', 'result'])
+            for result in results:
+                csvwriter.writerow(result)
+    else:
+        for artist, album, result in list(results):
+            print("%s - %s : %s" % (artist, album, result))
 
-        for subdir, dirs, files in tqdm(list(os.walk(input_folder))):
-            if ".itlp" in subdir:
-                continue  # ignore iTunes LP
 
-            if [dir_ for dir_ in dirs if ".itlp" not in dir_]:
-                # We ignore folders with subdirs except if the subdir is an iTunes LP
-                continue
+def _process_folder(input_folder, verbose):
+    for subdir, dirs, files in tqdm(list(os.walk(input_folder))):
+        if ".itlp" in subdir:
+            continue  # ignore iTunes LP
 
-            result = _process_album(subdir, files)
-            if result == ARTWORK_OK:
-                continue
+        if [dir_ for dir_ in dirs if ".itlp" not in dir_]:
+            # We ignore folders with subdirs except if the subdir is an iTunes LP
+            continue
 
-            artist, album = Path(subdir).parts[-2:]
-            csvwriter.writerow([artist, album, result])
+        result = _process_album(subdir, files)
+        if result == ARTWORK_OK and not verbose:
+            continue
+
+        artist, album = Path(subdir).parts[-2:]
+
+        yield [artist, album, result]
 
 
 def _process_album(subdir, files):
