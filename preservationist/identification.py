@@ -17,6 +17,10 @@ ARTWORK_TYPE_PNG = "PNG image type"
 ARTWORK_TYPE_UNKOWN = "Unknown image type"
 ARTWORK_TYPE_MULTIPLE = "Multiple image types"
 ARTWORK_COVER_MULTIPLE = "Multiple covers"
+MULTIPLE_ARTWORK_IN_FILE = "Multiple covers in single file"
+COVER_JPEG = "JPEG"
+COVER_PNG = "PNG"
+COVER_UNKOWN = "UNKNOWN"
 
 
 def diagnose(input_folder, output_file, verbose):
@@ -85,11 +89,30 @@ def _process_album(subdir, files):
 
         path = os.path.join(subdir, file)
         audio = mutagen.File(path)
-        has_cover = "covr" in audio.tags
-        if has_cover:
+
+        if "covr" in audio.tags:
             covers = audio.tags["covr"]
-            cover_formats_found.append(covers[0].imageformat)
+            if len(covers) > 1:
+                return MULTIPLE_ARTWORK_IN_FILE
+
+            image_format = AtomDataType(covers[0].imageformat)
+            if image_format == AtomDataType.JPEG:
+                cover_formats_found.append(COVER_JPEG)
+            elif image_format == AtomDataType.PNG:
+                cover_formats_found.append(COVER_PNG)
+            else:
+                cover_formats_found.append(COVER_UNKOWN)
             covers_found.append(covers[0].hex())
+        elif 'APIC:' in audio.tags:
+            cover = audio.tags['APIC:']
+            mime = cover.mime.lower()
+            if "jpeg" in mime:
+                cover_formats_found.append(COVER_JPEG)
+            elif "png" in mime:
+                cover_formats_found.append(COVER_PNG)
+            else:
+                cover_formats_found.append(COVER_UNKOWN)
+            covers_found.append(cover.data.hex())
         else:
             missing_covers = True
 
@@ -98,10 +121,10 @@ def _process_album(subdir, files):
     elif missing_covers:
         return SOME_MISSING
     elif len(set(covers_found)) == 1:
-        artwork_type = AtomDataType(cover_formats_found[0])
-        if artwork_type == AtomDataType.JPEG:
+        artwork_type = cover_formats_found[0]
+        if artwork_type == COVER_JPEG:
             return ARTWORK_OK
-        elif artwork_type == AtomDataType.PNG:
+        elif artwork_type == COVER_PNG:
             return ARTWORK_TYPE_PNG
         else:
             return ARTWORK_TYPE_UNKOWN
