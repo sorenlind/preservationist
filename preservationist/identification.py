@@ -70,7 +70,7 @@ class Album(object):
         if any(song for song in self.songs if song.covers[0].image_format == ImageFormat.UNKNOWN):
             return "Unknown artwork format"
 
-        #artwork_types = [song. for song in self.songs]
+        # TODO: Check dimensions
         
         return ""
 
