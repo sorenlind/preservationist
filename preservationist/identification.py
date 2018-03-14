@@ -51,7 +51,7 @@ def _process_folder(input_folder, verbose):
         if result == ARTWORK_OK and not verbose:
             continue
 
-        artist, album = Path(subdir).parts[-2:]
+        artist, album = Path(subdir).absolute().parts[-2:]
 
         yield [artist, album, result]
 
