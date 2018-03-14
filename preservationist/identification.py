@@ -10,6 +10,8 @@ import mutagen
 from mutagen.mp4 import AtomDataType
 from tqdm import tqdm
 
+# TODO: Also check image dimensions / resolution
+
 
 class Album(object):
     """Simple album data class."""
@@ -18,25 +20,17 @@ class Album(object):
         self.artist_name = artist_name
         self.album_name = album_name
         self.songs = []
-        self._artwork_ok = None
         self._purchased_by = None
 
     def __str__(self):
-        return "{artist_name:35}| {album_name:50}| {artwork_ok:3}| {purchased_by:20}| {message:1}".format(
+        return "{artist_name:35}| {album_name:50}| {purchased_by:20}| {message:1}".format(
             artist_name=self.artist_name,
             album_name=self.album_name,
-            artwork_ok="OK" if self.artwork_ok else "",
             purchased_by=", ".join(self.purchased_by),
             message=self.status_message)
 
     def add_song(self, song):
         self.songs.append(song)
-
-    @property
-    def artwork_ok(self):
-        if self._artwork_ok is None:
-            self._artwork_ok = all(song.artwork_ok for song in self.songs)
-        return self._artwork_ok
 
     @property
     def purchased_by(self):
@@ -46,9 +40,6 @@ class Album(object):
 
     @property
     def status_message(self):
-        #if self.artwork_ok:
-        #    return ""
-
         if all(not song.has_cover for song in self.songs):
             return "No artwork"
 
@@ -71,43 +62,8 @@ class Album(object):
             return "Unknown artwork format"
 
         # TODO: Check dimensions
-        
+
         return ""
-
-
-# NO_ARTWORK = "No artwork"
-# ARTWORK_OK = "OK"
-# SOME_MISSING = "Some artwork missing"
-# ARTWORK_TYPE_PNG = "PNG image type"
-# ARTWORK_TYPE_JPEG = "JPEG"
-# ARTWORK_TYPE_UNKOWN = "Unknown image type"
-# ARTWORK_TYPE_MULTIPLE = "Multiple image types"
-# ARTWORK_COVER_MULTIPLE = "Multiple covers"
-# MULTIPLE_ARTWORK_IN_FILE = "Multiple covers in single file"
-# COVER_JPEG = "JPEG"
-# COVER_PNG = "PNG"
-# COVER_UNKOWN = "UNKNOWN"
-
-# # ------
-# if result == ARTWORK_OK and not verbose:
-#     continue
-
-# if not covers_found:
-#     return NO_ARTWORK
-# elif missing_covers:
-#     return SOME_MISSING
-# elif len(set(covers_found)) == 1:
-#     artwork_type = cover_formats_found[0]
-#     if artwork_type == COVER_JPEG:
-#         return ARTWORK_OK
-#     elif artwork_type == COVER_PNG:
-#         return ARTWORK_TYPE_PNG
-#     else:
-#         return ARTWORK_TYPE_UNKOWN
-# elif len(set(cover_formats_found)) == 1:
-#     return ARTWORK_COVER_MULTIPLE
-# else:
-#     return ARTWORK_TYPE_MULTIPLE
 
 
 class Song(object):
@@ -143,19 +99,11 @@ class Song(object):
         """Return a value indicating whether mutagen could load the file."""
         return self.error is None
 
-    @property
-    def artwork_ok(self):
-        return self.is_valid_audio and len(self.covers) == 1 and self.covers[0].ok
-
 
 class Artwork(object):
     def __init__(self, image_format, contents):
         self.image_format = image_format
         self.contents = contents
-
-    def ok(self):
-        # TODO: Also check image dimensions / resolution
-        return self.image_format == ImageFormat.JPEG
 
 
 class ImageFormat(Enum):
@@ -170,19 +118,19 @@ def diagnose(input_folder, output_file, verbose):
     if output_file:
         with open(output_file, 'w') as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-            csvwriter.writerow(['artist', 'album', 'result'])
+            csvwriter.writerow(['artist', 'album', 'purchased_by', 'status_message'])
             for album in _parse_folder(input_folder):
                 row = _album_to_row(album)
                 csvwriter.writerow(row)
     else:
         for album in list(_parse_folder(input_folder)):
-            if album.artwork_ok and not verbose:
+            if not album.status_message and not verbose:
                 continue
             print(album)
 
 
 def _album_to_row(album):
-    return [album.artist_name, album.album_name, album.ok]
+    return [album.artist_name, album.album_name, ", ".join(album.purchased_by), album.status_message]
 
 
 def _parse_folder(input_folder):
@@ -276,38 +224,3 @@ def _parse_mime_type(mime_type):
     elif "png" in mime_type:
         return ImageFormat.PNG
     return ImageFormat.UNKNOWN
-
-
-# NO_ARTWORK = "No artwork"
-# ARTWORK_OK = "OK"
-# SOME_MISSING = "Some artwork missing"
-# ARTWORK_TYPE_PNG = "PNG image type"
-# ARTWORK_TYPE_JPEG = "JPEG"
-# ARTWORK_TYPE_UNKOWN = "Unknown image type"
-# ARTWORK_TYPE_MULTIPLE = "Multiple image types"
-# ARTWORK_COVER_MULTIPLE = "Multiple covers"
-# MULTIPLE_ARTWORK_IN_FILE = "Multiple covers in single file"
-# COVER_JPEG = "JPEG"
-# COVER_PNG = "PNG"
-# COVER_UNKOWN = "UNKNOWN"
-
-# # ------
-# if result == ARTWORK_OK and not verbose:
-#     continue
-
-# if not covers_found:
-#     return NO_ARTWORK
-# elif missing_covers:
-#     return SOME_MISSING
-# elif len(set(covers_found)) == 1:
-#     artwork_type = cover_formats_found[0]
-#     if artwork_type == COVER_JPEG:
-#         return ARTWORK_OK
-#     elif artwork_type == COVER_PNG:
-#         return ARTWORK_TYPE_PNG
-#     else:
-#         return ARTWORK_TYPE_UNKOWN
-# elif len(set(cover_formats_found)) == 1:
-#     return ARTWORK_COVER_MULTIPLE
-# else:
-#     return ARTWORK_TYPE_MULTIPLE
