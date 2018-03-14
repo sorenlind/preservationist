@@ -56,6 +56,36 @@ def _process_folder(input_folder, verbose):
         yield [artist, album, result]
 
 
+class Album(object):
+    def __init__():
+        pass
+
+class Song(object):
+    """Simple song data class."""
+    def __init__(self, file_name):
+        self.file_name = file_name
+        self._file_type = None
+        self.purchased_by = False
+        self.covers = []
+
+    @property
+    def file_type(self):
+        """Return the file type, fx '.mp3'. or '.m4a'"""
+        if not self._file_type:
+            self._file_type = Path(self.file_name).suffix
+        return self._file_type
+
+    @property
+    def purchased(self):
+        """Return a value indicating whether the song was purchased in the iTunes store."""
+        return bool(self.purchased_by)
+
+    @property
+    def has_cover(self):
+        """Return a value indicating whether the song has a cover."""
+        return bool(self.covers)
+
+
 def _process_album(subdir, files):
     covers_found = []
     cover_formats_found = []
