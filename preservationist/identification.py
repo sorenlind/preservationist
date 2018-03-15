@@ -195,7 +195,7 @@ def _parse_song(subdir, file):
 
     try:
         audio = mutagen.File(path)
-    except Exception as exception:
+    except mutagen.mp3.HeaderNotFoundError as exception:
         logger.warning("Could not read '%s': %s", file, exception)
         song = Song(file)
         song.error = str(exception)
