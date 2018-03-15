@@ -1,16 +1,21 @@
 # coding: utf8
 """Functions for finding albums with messy artwork."""
-from enum import Enum
 import csv
+import io
 import logging
 import os
+from enum import Enum
 from pathlib import Path
 
 import mutagen
 from mutagen.mp4 import AtomDataType
+from PIL import Image
 from tqdm import tqdm
 
-# TODO: Also check image dimensions / resolution
+IMAGE_WIDTH = 600
+IMAGE_HEIGHT = 600
+
+logger = logging.getLogger(__name__)
 
 
 class Album(object):
@@ -23,11 +28,12 @@ class Album(object):
         self._purchased_by = None
 
     def __str__(self):
-        return "{artist_name:35}| {album_name:50}| {purchased_by:20}| {message:1}".format(
+        return "{artist_name:35}| {album_name:50}| {purchased_by:20}| {message:25}| {size:1}".format(
             artist_name=self.artist_name,
             album_name=self.album_name,
             purchased_by=", ".join(self.purchased_by),
-            message=self.status_message)
+            message=self.status_message,
+            size=self.size_message)
 
     def add_song(self, song):
         self.songs.append(song)
@@ -61,9 +67,21 @@ class Album(object):
         if any(song for song in self.songs if song.covers[0].image_format == ImageFormat.UNKNOWN):
             return "Unknown artwork format"
 
-        # TODO: Check dimensions
+        if any(song.covers[0].width != IMAGE_WIDTH or song.covers[0].height != IMAGE_HEIGHT for song in self.songs):
+            return "Bad artwork size"
 
         return ""
+
+    @property
+    def size_message(self):
+        sizes = set(f"{song.covers[0].width}x{song.covers[0].height}" for song in self.songs if len(song.covers))
+        if not sizes:
+            return ""
+
+        if len(sizes) == 1:
+            return list(sizes)[0]
+
+        return "Mixed"
 
 
 class Song(object):
@@ -101,9 +119,11 @@ class Song(object):
 
 
 class Artwork(object):
-    def __init__(self, image_format, contents):
+    def __init__(self, image_format, contents, width, height):
         self.image_format = image_format
         self.contents = contents
+        self.width = width
+        self.height = height
 
 
 class ImageFormat(Enum):
@@ -118,7 +138,7 @@ def diagnose(input_folder, output_file, verbose):
     if output_file:
         with open(output_file, 'w') as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-            csvwriter.writerow(['artist', 'album', 'purchased_by', 'status_message'])
+            csvwriter.writerow(['artist', 'album', 'purchased_by', 'status_message', 'size'])
             for album in _parse_folder(input_folder):
                 row = _album_to_row(album)
                 csvwriter.writerow(row)
@@ -130,7 +150,9 @@ def diagnose(input_folder, output_file, verbose):
 
 
 def _album_to_row(album):
-    return [album.artist_name, album.album_name, ", ".join(album.purchased_by), album.status_message]
+    return [
+        album.artist_name, album.album_name, ", ".join(album.purchased_by), album.status_message, album.size_message
+    ]
 
 
 def _parse_folder(input_folder):
@@ -159,7 +181,7 @@ def _parse_album(subdir, files):
             continue
 
         if suffix not in [".m4a", ".m4p", ".mp3"]:
-            logging.debug("unknown filetype: %s", file)
+            logger.debug("unknown filetype: %s", file)
             continue
 
         song = _parse_song(subdir, file)
@@ -174,7 +196,7 @@ def _parse_song(subdir, file):
     try:
         audio = mutagen.File(path)
     except Exception as exception:
-        logging.warning("Could not read '%s': %s", file, exception)
+        logger.warning("Could not read '%s': %s", file, exception)
         song = Song(file)
         song.error = str(exception)
         return song
@@ -197,7 +219,11 @@ def _parse_covr_tag(audio):
     covers = []
     for cover in audio.tags["covr"]:
         image_format = _atom_to_enum(AtomDataType(cover.imageformat))
-        cover = Artwork(image_format, cover.hex())
+
+        image = Image.open(io.BytesIO(cover))
+        # simage.show()
+        cover = Artwork(image_format, cover.hex(), image.width, image.height)
+        # cover = Artwork(image_format, cover.hex(), 0, 0)
         covers.append(cover)
     return covers
 
@@ -213,7 +239,7 @@ def _atom_to_enum(atom_data_type):
 def _parse_apic_tag(audio):
     cover = audio.tags['APIC:']
     image_format = _parse_mime_type(cover.mime)
-    cover = Artwork(image_format, cover.data.hex())
+    cover = Artwork(image_format, cover.data.hex(), 0, 0)
     return [cover]
 
 

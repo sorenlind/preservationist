@@ -16,7 +16,7 @@ setup(
     url="https://github.com/sorenlind/preservationist/",
     keywords="audio itunes artwork",
     packages=find_packages(),
-    install_requires=['mutagen', 'tqdm'],
+    install_requires=['mutagen', 'pillow', 'tqdm'],
     extras_require={
         'notebooks': ['jupyter'],
         'dev': ['jupyter', 'pylint', 'pycodestyle', 'pydocstyle', 'yapf', 'pytest', 'tox', 'rope'],
