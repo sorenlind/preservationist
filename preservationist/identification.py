@@ -219,11 +219,8 @@ def _parse_covr_tag(audio):
     covers = []
     for cover in audio.tags["covr"]:
         image_format = _atom_to_enum(AtomDataType(cover.imageformat))
-
         image = Image.open(io.BytesIO(cover))
-        # simage.show()
         cover = Artwork(image_format, cover.hex(), image.width, image.height)
-        # cover = Artwork(image_format, cover.hex(), 0, 0)
         covers.append(cover)
     return covers
 
@@ -239,7 +236,8 @@ def _atom_to_enum(atom_data_type):
 def _parse_apic_tag(audio):
     cover = audio.tags['APIC:']
     image_format = _parse_mime_type(cover.mime)
-    cover = Artwork(image_format, cover.data.hex(), 0, 0)
+    image = Image.open(io.BytesIO(cover.data))
+    cover = Artwork(image_format, cover.data.hex(), image.width, image.height)
     return [cover]
 
 
