@@ -12,8 +12,7 @@ from mutagen.mp4 import AtomDataType
 from PIL import Image
 from tqdm import tqdm
 
-IMAGE_WIDTH = 600
-IMAGE_HEIGHT = 600
+IMAGE_SIZES = [(600, 600), (1400, 1400)]
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +66,7 @@ class Album(object):
         if any(song for song in self.songs if song.covers[0].image_format == ImageFormat.UNKNOWN):
             return "Unknown artwork format"
 
-        if any(song.covers[0].width != IMAGE_WIDTH or song.covers[0].height != IMAGE_HEIGHT for song in self.songs):
+        if any((song.covers[0].width, song.covers[0].height) not in IMAGE_SIZES for song in self.songs):
             return "Bad artwork size"
 
         return ""
