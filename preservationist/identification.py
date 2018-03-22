@@ -16,26 +16,36 @@ IMAGE_SIZES = [(600, 600), (1400, 1400)]
 
 logger = logging.getLogger(__name__)
 
+MIXED = "[Mixed]"
+
 
 class Album(object):
     """Simple album data class."""
 
-    def __init__(self, artist_name, album_name):
-        self.artist_name = artist_name
-        self.album_name = album_name
+    def __init__(self, artist_folder, album_folder):
+        self.artist_folder = artist_folder
+        self.album_folder = album_folder
         self.songs = []
+        self.erroneous = []
         self._purchased_by = None
 
     def __str__(self):
-        return "{artist_name:35}| {album_name:50}| {purchased_by:20}| {message:25}| {size:1}".format(
-            artist_name=self.artist_name,
-            album_name=self.album_name,
+        return "{artist_folder:35}| {album_folder:50}| {purchased_by:20}| {artwork_message:25}| {size:9}| {sort_album:1}".format(
+            artist_folder=self.artist_folder,
+            album_folder=self.album_folder,
             purchased_by=", ".join(self.purchased_by),
-            message=self.status_message,
-            size=self.size_message)
+            artwork_message=self.artwork_message,
+            size=self.artwork_size,
+            sort_album=self.sort_album)
 
-    def add_song(self, song):
-        self.songs.append(song)
+    def __len__(self):
+        return len(self.songs)
+
+    def add(self, song):
+        if song.error:
+            self.erroneous.append(song)
+        else:
+            self.songs.append(song)
 
     @property
     def purchased_by(self):
@@ -44,7 +54,26 @@ class Album(object):
         return self._purchased_by
 
     @property
-    def status_message(self):
+    def file_message(self):
+        if not self.songs and all(_is_video(song.file_type) for song in self.erroneous):
+            return ""
+
+        if self.erroneous:
+            return ", ".join(sorted(set(song.error for song in self.erroneous)))
+
+        if not self.songs:
+            return "Empty album"
+
+        if self.file_type == MIXED:
+            return "Mixed file type: " + _unique_values(self.songs, lambda x: x.file_type)
+
+        return ""
+
+    @property
+    def artwork_message(self):
+        if not self.songs:
+            return ""
+
         if all(not song.has_cover for song in self.songs):
             return "No artwork"
 
@@ -72,7 +101,7 @@ class Album(object):
         return ""
 
     @property
-    def size_message(self):
+    def artwork_size(self):
         sizes = set(f"{song.covers[0].width}x{song.covers[0].height}" for song in self.songs if len(song.covers))
         if not sizes:
             return ""
@@ -80,7 +109,118 @@ class Album(object):
         if len(sizes) == 1:
             return list(sizes)[0]
 
-        return "Mixed"
+        return MIXED
+
+    @property
+    def naming_message(self):
+        if not self.songs:
+            return ""
+
+        if self.compilation == MIXED:
+            return "Some set as compilation"
+
+        if self.compilation == "True" and self.album_artist != "Various Artists":
+            return "Unexpected album artist for compilation: " + _unique_values(self.songs, lambda x: x.album_artist)
+
+        if self.compilation == "True" and len(self) > 1 and self.artist != MIXED:
+            return "Expected multiple artists for compilation"
+
+        if self.compilation == "False" and self.album_artist == "Various Artists":
+            return "Unexpected album artist for non-compilation"
+
+        album_artist_lower = _unique_value_or_mixed(
+            [song.album_artist.lower() if song.album_artist else None for song in self.songs])
+        if self.album_artist == MIXED and album_artist_lower != MIXED:
+            return "Artist differs by case only: " + _unique_values(self.songs, lambda x: x.album_artist)
+
+        artist_lower = _unique_value_or_mixed([song.artist.lower() if song.artist else None for song in self.songs])
+        if self.artist == MIXED and artist_lower != MIXED:
+            return "Album artist differs by case only: " + _unique_values(self.songs, lambda x: x.artist)
+
+        # It's okay to have mixed artists if it's fx "Placebo feat. David Bowie" for a Placebo album.
+        # Mixed artists are also okay if each artist is part of the album artist as in "Mark Lanegan & Karen Dalton"
+        # But other wise different artists we will make a warning.
+        if self.compilation == "False" and self.artist == MIXED:
+            album_artist = self.album_artist
+            if all(song.artist.startswith(album_artist) for song in self.songs):
+                pass
+                # return "this is ok (startswith): " + _unique_values(self.songs, lambda x: x.artist)
+            elif all(song.artist in album_artist for song in self.songs):
+                pass
+                # return "this is ok (in album_artist): " + _unique_values(self.songs, lambda x: x.artist)
+            else:
+                return "Expected single artist for non-compilation: " + _unique_values(self.songs, lambda x: x.artist)
+
+        if self.name == MIXED:
+            return "Mixed album: " + _unique_values(self.songs, lambda x: x.album)
+
+        if self.sort_album == MIXED:
+            return "Mixed sort album: " + _unique_values(self.songs, lambda x: x.sort_album)
+
+        if self.album_artist == MIXED:
+            return "Mixed album artist: " + _unique_values(self.songs, lambda x: x.album_artist)
+
+        if self.sort_album_artist == MIXED:
+            return "Mixed sort album artist: " + _unique_values(self.songs, lambda x: x.sort_album_artist)
+
+        if not self.album_artist:
+            return "No album artist"
+
+        return ""
+
+    @property
+    def album_artist(self):
+        return _unique_value_or_mixed([song.album_artist for song in self.songs])
+
+    @property
+    def artist(self):
+        return _unique_value_or_mixed([song.artist for song in self.songs])
+
+    @property
+    def name(self):
+        return _unique_value_or_mixed([song.album for song in self.songs])
+
+    @property
+    def sort_album_artist(self):
+        return _unique_value_or_mixed([song.sort_album_artist for song in self.songs])
+
+    @property
+    def sort_artist(self):
+        return _unique_value_or_mixed([song.sort_artist for song in self.songs])
+
+    @property
+    def sort_album(self):
+        return _unique_value_or_mixed([song.sort_album for song in self.songs])
+
+    @property
+    def compilation(self):
+        temp = _unique_value_or_mixed([str(song.compilation) for song in self.songs])
+        if temp == "":
+            return "False"
+        return temp
+
+    @property
+    def file_type(self):
+        return _unique_value_or_mixed([song.file_type for song in self.songs + self.erroneous])
+
+
+def _is_video(file_type):
+    return file_type in ['.mov', '.m4v', '.mpeg', '.mpg', '.mp4']
+
+
+def _unique_values(songs, getter, max_length=100):
+    return ", ".join(sorted(set(getter(song) or "[None]" for song in songs)))[:max_length]
+
+
+def _unique_value_or_mixed(values):
+    temp = list(set(values))
+    if not temp:
+        return ""
+
+    if len(temp) == 1:
+        return temp[0] or ""
+
+    return MIXED
 
 
 class Song(object):
@@ -90,8 +230,14 @@ class Song(object):
         self.file_name = file_name
         self._file_type = None
         self.purchased_by = None
+        self.album_artist = None
+        self.artist = None
+        self.album = None
+        self.sort_album_artist = None
+        self.sort_artist = None
+        self.sort_album = None
+        self.compilation = False
         self.covers = []
-        self.valid_audio_file = False
         self.error = None
 
     @property
@@ -137,25 +283,54 @@ def diagnose(input_folder, output_file, verbose):
     if output_file:
         with open(output_file, 'w') as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-            csvwriter.writerow(['artist', 'album', 'purchased_by', 'status_message', 'size'])
+            csvwriter.writerow([
+                'artist_folder',
+                'album_folder',
+                'compilation',
+                'album_artist',
+                'artist',
+                'album',
+                'sort_album_artist',
+                'sort_artist',
+                'sort_album',
+                'purchased_by',
+                'file_type',
+                'artwork_size',
+                'status',
+                'file_message',
+                'artwork_message',
+                'naming_message',
+            ])
             for album in _parse_folder(input_folder):
                 row = _album_to_row(album)
                 csvwriter.writerow(row)
     else:
         for album in list(_parse_folder(input_folder)):
-            if not album.status_message and not verbose:
+            if not album.artwork_message and album.sort_album != MIXED and not verbose:
                 continue
             print(album)
 
 
 def _album_to_row(album):
     return [
-        album.artist_name, album.album_name, ", ".join(album.purchased_by), album.status_message, album.size_message
+        album.artist_folder, album.album_folder, album.compilation, album.album_artist,
+        album.artist, album.name, album.sort_album_artist, album.sort_artist, album.sort_album, ", ".join(
+            album.purchased_by), album.file_type, album.artwork_size, "OK"
+        if not (album.file_message or album.artwork_message or album.naming_message) else "", album.file_message,
+        album.artwork_message, album.naming_message
     ]
 
 
 def _parse_folder(input_folder):
-    for subdir, dirs, files in tqdm(sorted(os.walk(input_folder))):
+    relevant_subdirs = _find_subfolders(input_folder)
+    for subdir, files in tqdm(relevant_subdirs):
+        album = _parse_album(subdir, files)
+        yield album
+
+
+def _find_subfolders(input_folder):
+    relevant_subdirs = []
+    for subdir, dirs, files in sorted(os.walk(input_folder)):
         if ".itlp" in subdir:
             continue  # ignore iTunes LP
 
@@ -163,8 +338,8 @@ def _parse_folder(input_folder):
             # We ignore folders with subdirs except if the subdir is an iTunes LP
             continue
 
-        album = _parse_album(subdir, files)
-        yield album
+        relevant_subdirs.append((subdir, files))
+    return relevant_subdirs
 
 
 def _parse_album(subdir, files):
@@ -176,15 +351,21 @@ def _parse_album(subdir, files):
             continue  # ignore hidden files
 
         suffix = Path(file).suffix.lower()
-        if suffix in [".mpg", ".mpeg", ".pdf", ".m4v", ".mov", ".mp4"]:
+        if suffix in [".pdf"]:
+            # PDF files appear in folders because they come with some iTunes downloads. We simply skip them.
             continue
-
         if suffix not in [".m4a", ".m4p", ".mp3"]:
-            logger.debug("unknown filetype: %s", file)
+            # Unsupported format. We do not try and read the file but we do add a 'song' representing the file. This
+            # is to make sure we are made aware of unused files lying around
+            song = Song(os.path.join(subdir, file))
+            song.error = f"Unsupported file type: {song.file_type}"
+            album.add(song)
             continue
 
+        # File is in a supported format. We read the file and try to extract meta data.
         song = _parse_song(subdir, file)
-        album.add_song(song)
+        album.add(song)
+        continue
 
     return album
 
@@ -203,6 +384,40 @@ def _parse_song(subdir, file):
     assert audio is not None
 
     song = Song(file)
+    if "aART" in audio.tags:
+        song.album_artist = audio.tags["aART"][0]
+    if "\xa9ART" in audio.tags:
+        song.artist = audio.tags["\xa9ART"][0]
+    if "\xa9alb" in audio.tags:
+        song.album = audio.tags["\xa9alb"][0]
+    if "soaa" in audio.tags:
+        song.sort_album_artist = audio.tags["soaa"][0]
+    if "soar" in audio.tags:
+        song.sort_artist = audio.tags["soar"][0]
+    if "soal" in audio.tags:
+        song.sort_album = audio.tags["soal"][0]
+    if "cpil" in audio.tags:
+        song.compilation = audio.tags["cpil"]
+
+    if not song.album_artist and 'TPE2' in audio.tags:
+        song.album_artist = str(audio.tags['TPE2'])
+    if not song.artist and 'TOPE' in audio.tags:
+        song.artist = str(audio.tags['TOPE'])
+    if not song.artist and 'TPE1' in audio.tags:
+        song.artist = str(audio.tags['TPE1'])
+    if not song.album and 'TALB' in audio.tags:
+        song.album = str(audio.tags['TALB'])
+
+    if not song.sort_album_artist and 'TSO2' in audio.tags:
+        song.sort_album_artist = str(audio.tags['TSO2'])
+    if not song.sort_artist and 'TSOP' in audio.tags:
+        song.sort_artist = str(audio.tags['TSOP'])
+    if not song.sort_album and 'TSOA' in audio.tags:
+        song.sort_album = str(audio.tags['TSOA'])
+
+    if "TCMP" in audio.tags:
+        song.compilation = bool(int(str(audio.tags['TCMP'])))
+
     if "covr" in audio.tags:
         song.covers = _parse_covr_tag(audio)
     elif 'APIC:' in audio.tags:
@@ -211,6 +426,7 @@ def _parse_song(subdir, file):
     if 'apID' in audio.tags:
         assert len(audio.tags['apID']) == 1
         song.purchased_by = audio.tags['apID'][0]
+
     return song
 
 
