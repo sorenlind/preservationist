@@ -4,6 +4,7 @@ import csv
 import io
 import logging
 import os
+from collections import Counter
 from enum import Enum
 from pathlib import Path
 
@@ -67,6 +68,58 @@ class Album(object):
         if self.file_type == MIXED:
             return "Mixed file type: " + _unique_values(self.songs, lambda x: x.file_type)
 
+        return ""
+
+    @property
+    def track_message(self):
+        if not self.songs:
+            return ""
+
+        missing = sum(song.track is None for song in self.songs)
+        if missing == len(self.songs):
+            return "No track info"
+
+        if missing > 0:
+            return "Some track info missing"
+
+        missing = sum(song.track[0] == 0 for song in self.songs)
+        if missing == len(self.songs):
+            return "No track numbers"
+
+        if missing > 1:
+            return "Some track numbers missing"
+
+        missing = sum(song.track[1] == 0 for song in self.songs)
+        if missing == len(self.songs):
+            return "No total track count info"
+
+        if missing > 1:
+            return "Some total track count missing"
+
+        unique_totals = len(set(song.track[1] for song in self.songs))
+        if unique_totals > 1:
+            return "Mixed total track count"
+
+        duplicates = [(key, val) for (key, val) in Counter(song.track[0] for song in self.songs).items() if val > 1]
+        if duplicates:
+            return "Duplicate track numbers"
+
+        if self.songs[0].track[1] != len(self.songs):
+            # We don't want to cause a warning for complete albums which we have only bought a single song from.
+            # But we want to make warnings for singles and EPs. So we check that we have at least three songs or
+            # that the album is specified as having only very few songs.
+            if len(self.songs) >= 3 or self.songs[0].track[1] < 3:
+                return "Total specified track count not matching actual number of songs"
+
+        return ""
+
+    @property
+    def disc_message(self):
+        if not self.songs:
+            return ""
+
+        if any(song.disc is None or 0 in song.disc for song in self.songs):
+            return "Missing"
         return ""
 
     @property
@@ -239,6 +292,8 @@ class Song(object):
         self.compilation = False
         self.covers = []
         self.error = None
+        self.track = None
+        self.disc = None
 
     @property
     def file_type(self):
@@ -300,6 +355,8 @@ def diagnose(input_folder, output_file, verbose):
                 'file_message',
                 'artwork_message',
                 'naming_message',
+                'track_message',
+                'disc_message',
             ])
             for album in _parse_folder(input_folder):
                 row = _album_to_row(album)
@@ -316,8 +373,9 @@ def _album_to_row(album):
         album.artist_folder, album.album_folder, album.compilation, album.album_artist,
         album.artist, album.name, album.sort_album_artist, album.sort_artist, album.sort_album, ", ".join(
             album.purchased_by), album.file_type, album.artwork_size, "OK"
-        if not (album.file_message or album.artwork_message or album.naming_message) else "", album.file_message,
-        album.artwork_message, album.naming_message
+        if not (album.file_message or album.artwork_message or album.naming_message or album.track_message
+                or album.disc_message) else "", album.file_message, album.artwork_message, album.naming_message,
+        album.track_message, album.disc_message
     ]
 
 
@@ -398,6 +456,10 @@ def _parse_song(subdir, file):
         song.sort_album = audio.tags["soal"][0]
     if "cpil" in audio.tags:
         song.compilation = audio.tags["cpil"]
+    if "trkn" in audio.tags:
+        song.track = audio.tags["trkn"][0]
+    if "disk" in audio.tags:
+        song.disc = audio.tags["disk"][0]
 
     if not song.album_artist and 'TPE2' in audio.tags:
         song.album_artist = str(audio.tags['TPE2'])
@@ -427,7 +489,22 @@ def _parse_song(subdir, file):
         assert len(audio.tags['apID']) == 1
         song.purchased_by = audio.tags['apID'][0]
 
+    if 'TRCK' in audio.tags:
+        song.track = parse_numeric_parts(audio, 'TRCK')
+
+    if 'TPOS' in audio.tags:
+        song.disc = parse_numeric_parts(audio, 'TPOS')
+
     return song
+
+
+def parse_numeric_parts(audio, key):
+    track = audio.tags[key].text[0].split("/")
+    track = [int(element) if element else 0 for element in track]
+    if len(track) == 1:
+        track = track + [0]
+    assert len(track) == 2
+    return tuple(track)
 
 
 def _parse_covr_tag(audio):
